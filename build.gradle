@@ -1,0 +1,109 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroup 'com.geckolib'
+        }
+    }
+    maven {
+        url = 'https://cursemaven.com'
+        content {
+            includeGroup 'curse.maven'
+        }
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+// 产物命名：模组名_mc版本_模组版本.jar（例如 ds_quickemotes_26.1.2_1.0.1.jar）
+tasks.named('jar', Jar).configure {
+    archiveFileName = "${mod_id}_${minecraft_version}_${mod_version}.jar"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        // 纯客户端模组：只需要 client 运行
+        client {
+            client()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    // GeckoLib：DS 的前置，编译期与开发运行期都需要（5.x 起 group 改为 com.geckolib）
+    implementation "com.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+
+    // Dragon Survival 26.1.2：使用从官方源码仓库构建的 jar（libs/ 已 gitignore，DS 许可证禁止再分发）。
+    // 支持 2.1.0+（26.1.2 全系）；compileOnly 取最老 jar 作为 API 基线，localRuntime 取最新 jar。
+    // 文件名为 DragonSurvival-26.1.2-v<version>[-beta]-<dd.MM.yyyy>.jar。
+    def dsJars = fileTree(dir: 'libs', include: ['DragonSurvival-26.1.2-*.jar']).files.toList()
+    if (!dsJars.isEmpty()) {
+        def versionOf = { f ->
+            def m = f.name =~ /-v(\d+)\.(\d+)\.(\d+)(?:-beta)?(?:-\d{2}\.\d{2}\.\d{4})?(?:-all)?\.jar$/
+            m.find() ? [m.group(1).toInteger(), m.group(2).toInteger(), m.group(3).toInteger()] : [0, 0, 0]
+        }
+        def sortedDsJars = dsJars.sort { a, b ->
+            def va = versionOf(a)
+            def vb = versionOf(b)
+            for (int i = 0; i < 3; i++) {
+                if (va[i] != vb[i]) {
+                    return va[i] <=> vb[i]
+                }
+            }
+            return a.name <=> b.name
+        }
+        compileOnly files(sortedDsJars.first())
+        localRuntime files(sortedDsJars.last())
+    } else {
+        throw new GradleException(
+                "未找到 Dragon Survival 26.1.2 jar。请先从 Dragon Survival 26.1 源码构建 " +
+                "2.1.0（编译基线）和最新版，并把 DragonSurvival-26.1.2-*.jar 放入 libs/。")
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' 
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
