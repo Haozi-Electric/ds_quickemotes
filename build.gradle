@@ -1,0 +1,107 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroup 'software.bernie.geckolib'
+        }
+    }
+    maven {
+        url = 'https://cursemaven.com'
+        content {
+            includeGroup 'curse.maven'
+        }
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+// 产物命名：模组名_mc版本_模组版本.jar（例如 ds_quickemotes_1.21.1_1.0.1.jar）
+tasks.named('jar', Jar).configure {
+    archiveFileName = "${mod_id}_${minecraft_version}_${mod_version}.jar"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        // 纯客户端模组：只需要 client 运行
+        client {
+            client()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    // GeckoLib：DS 的前置，编译期与开发运行期都需要
+    implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+
+    // Dragon Survival 兼容策略（编译基线 = 运行时下限 = 2.0.54，三处统一，无兼容分支）：
+    //  编译基线 = libs/ 里最老的 jar（当前 2.0.54）→ 机械防止误用新版专有 API；
+    //  开发运行 = libs/ 里最新的 jar（当前 2.0.71）；
+    //  mods.toml 声明 [2.0.54, )；CI / 新克隆用 CurseForge 的 2.0.54。
+    // libs/ 已 gitignore（DS 许可证禁止再分发）。
+    def dsJars = fileTree(dir: 'libs', include: ['DragonSurvival-1.21.1-*.jar']).files.toList()
+    if (!dsJars.isEmpty()) {
+        def jarOrder = { f ->
+            // 官方文件名尾部的 dd.MM.yyyy 日期，按时间排序
+            def m = f.name =~ /-(\d{2})\.(\d{2})\.(\d{4})-all\.jar$/
+            m.find() ? (m.group(3) + m.group(2) + m.group(1)) : f.name
+        }
+        def sortedDsJars = dsJars.sort { jarOrder(it) }
+        compileOnly files(sortedDsJars.first())
+        localRuntime files(sortedDsJars.last())
+    } else {
+        compileOnly 'curse.maven:dragons-survival-420799:8010249' // 2.0.54
+        localRuntime 'curse.maven:dragons-survival-420799:8010249'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' 
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

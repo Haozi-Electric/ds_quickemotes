@@ -1,0 +1,43 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="ds_quickemotes"
+version="1.0.1"
+displayName="Dragon Survival Quick Emotes"
+authors="HOZ,Deepseek"
+logoFile="icon.png"
+description='''
+A client-side emote radial menu for Dragon Survival.
+为龙之生存添加了一个纯客户端侧的快速表情轮盘
+'''
+
+# NeoForge 下限对齐 Dragon Survival 自己的下限（[21.1.186,)）
+[[dependencies.ds_quickemotes]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.186,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.ds_quickemotes]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1]"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.ds_quickemotes]]
+    modId="dragonsurvival"
+    type="required"
+    versionRange="[2.0.54,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+[[dependencies.ds_quickemotes]]
+    modId="geckolib"
+    type="required"
+    versionRange="[4.6,)"
+    ordering="NONE"
+    side="CLIENT"
